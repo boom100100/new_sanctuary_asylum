@@ -2,15 +2,15 @@
 # of editing this file, please use the migrations feature of Active Record to
 # incrementally modify your database, and then regenerate this schema definition.
 #
-# Note that this schema.rb definition is the authoritative source for your
-# database schema. If you need to create the application database on another
-# system, you should be using db:schema:load, not running all the migrations
-# from scratch. The latter is a flawed and unsustainable approach (the more migrations
-# you'll amass, the slower it'll run and the greater likelihood for issues).
+# This file is the source Rails uses to define your schema when running `rails
+# db:schema:load`. When creating a new database, `rails db:schema:load` tends to
+# be faster and is potentially less error prone than running all of your
+# migrations from scratch. Old migrations may fail to apply correctly if those
+# migrations use external dependencies or application code.
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2020_02_15_212329) do
+ActiveRecord::Schema.define(version: 2020_12_13_170831) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -34,6 +34,7 @@ ActiveRecord::Schema.define(version: 2020_02_15_212329) do
     t.datetime "updated_at", null: false
     t.integer "user_id"
     t.text "outcome_of_hearing"
+    t.bigint "friend_id"
   end
 
   create_table "accompaniments", id: :serial, force: :cascade do |t|
@@ -45,7 +46,6 @@ ActiveRecord::Schema.define(version: 2020_02_15_212329) do
   end
 
   create_table "activities", id: :serial, force: :cascade do |t|
-    t.string "event"
     t.integer "location_id"
     t.integer "friend_id"
     t.integer "judge_id"
@@ -55,11 +55,11 @@ ActiveRecord::Schema.define(version: 2020_02_15_212329) do
     t.datetime "updated_at", null: false
     t.integer "region_id"
     t.boolean "confirmed"
-    t.text "public_notes"
     t.integer "activity_type_id"
-    t.integer "last_edited_by"
+    t.text "public_notes"
     t.boolean "occur_at_tbd"
     t.datetime "control_date"
+    t.integer "last_edited_by"
     t.index ["activity_type_id"], name: "index_activities_on_activity_type_id"
     t.index ["region_id"], name: "index_activities_on_region_id"
   end
@@ -69,7 +69,7 @@ ActiveRecord::Schema.define(version: 2020_02_15_212329) do
     t.integer "cap"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.boolean "accompaniment_eligible"
+    t.boolean "accompaniment_eligible", default: false
     t.boolean "eoir_caller_editable", default: false
   end
 
@@ -268,6 +268,9 @@ ActiveRecord::Schema.define(version: 2020_02_15_212329) do
     t.boolean "no_record_in_eoir", default: false
     t.boolean "order_of_supervision", default: false
     t.string "clinic_plan"
+    t.datetime "judge_imposed_i589_deadline"
+    t.boolean "has_a_lawyer"
+    t.string "lawyer_name"
     t.index ["community_id"], name: "index_friends_on_community_id"
     t.index ["region_id"], name: "index_friends_on_region_id"
   end
@@ -317,6 +320,19 @@ ActiveRecord::Schema.define(version: 2020_02_15_212329) do
 
   create_table "regions", id: :serial, force: :cascade do |t|
     t.string "name"
+  end
+
+  create_table "remote_review_actions", force: :cascade do |t|
+    t.string "action", null: false
+    t.integer "friend_id", null: false
+    t.integer "user_id", null: false
+    t.integer "region_id", null: false
+    t.integer "community_id", null: false
+    t.integer "application_id", null: false
+    t.integer "draft_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["region_id"], name: "index_remote_review_actions_on_region_id"
   end
 
   create_table "reviews", id: :serial, force: :cascade do |t|
@@ -432,14 +448,18 @@ ActiveRecord::Schema.define(version: 2020_02_15_212329) do
     t.datetime "locked_at"
     t.boolean "signed_guidelines"
     t.integer "community_id"
-    t.boolean "remote_clinic_lawyer"
     t.boolean "attended_training"
+    t.string "authy_id"
+    t.datetime "last_sign_in_with_authy"
+    t.boolean "authy_enabled", default: false
+    t.index ["authy_id"], name: "index_users_on_authy_id"
     t.index ["community_id"], name: "index_users_on_community_id"
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true
     t.index ["invitations_count"], name: "index_users_on_invitations_count"
     t.index ["invited_by_id"], name: "index_users_on_invited_by_id"
+    t.index ["invited_by_type", "invited_by_id"], name: "index_users_on_invited_by_type_and_invited_by_id"
     t.index ["password_changed_at"], name: "index_users_on_password_changed_at"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true

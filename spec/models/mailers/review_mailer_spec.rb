@@ -1,17 +1,17 @@
 require 'rails_helper'
 
 RSpec.describe ReviewMailer, type: :mailer do
-  describe 'changes_requested_email(review)' do
+  describe 'review_added_email(review)' do
     let(:community) { create :community }
     let(:region) { community.region }
-    let(:draft) { create :draft, status: :changes_requested, friend: friend }
+    let(:draft) { create :draft, status: :review_added, friend: friend }
     let(:review) { create :review, draft: draft }
     let(:friend) { create :friend, community: community, region: region }
     let!(:volunteer) { create :user, community: community }
     let!(:community_admin) { create :user, :community_admin, community: community }
     let!(:regional_admin) { create :user, :regional_admin, community: community }
 
-    subject(:mail) { ReviewMailer.changes_requested_email(review)}
+    subject(:mail) { ReviewMailer.review_added_email(review)}
 
     before do
       UserFriendAssociation.create!(friend_id: friend.id,
@@ -33,8 +33,8 @@ RSpec.describe ReviewMailer, type: :mailer do
     end
 
     it 'renders the body' do
-      expect(mail.html_part.body.raw_source).to include "#{friend.first_name}'s #{draft.application.category} application draft has recieved a review: <a href=\"#{community_friend_draft_review_url(friend.community.slug, friend, review.draft, review)}\">#{community_friend_draft_review_url(friend.community.slug, friend, review.draft, review)}</a>"
-      expect(mail.text_part.body.raw_source).to include "#{friend.first_name}'s #{draft.application.category} application draft has recieved a review: #{community_friend_draft_review_url(friend.community.slug, friend, review.draft, review)}"
+      expect(mail.html_part.body.raw_source).to include "#{friend.first_name}'s #{draft.application.category} application draft has recieved a review."
+      expect(mail.text_part.body.raw_source).to include "#{friend.first_name}'s #{draft.application.category} application draft has recieved a review."
     end
   end
 
@@ -69,8 +69,8 @@ RSpec.describe ReviewMailer, type: :mailer do
     end
 
     it 'renders the body' do
-      expect(mail.html_part.body.raw_source).to include "#{friend.first_name}'s #{application.category} application has an approved draft: <a href=\"#{community_friend_url(friend.community.slug, friend)}\">#{community_friend_url(friend.community.slug, friend)}</a>"
-      expect(mail.text_part.body.raw_source).to include "#{friend.first_name}'s #{application.category} application has an approved draft: #{community_friend_url(friend.community.slug, friend)}"
+      expect(mail.html_part.body.raw_source).to include "#{friend.first_name}'s #{application.category} application has an approved draft."
+      expect(mail.text_part.body.raw_source).to include "#{friend.first_name}'s #{application.category} application has an approved draft."
     end
   end
 end

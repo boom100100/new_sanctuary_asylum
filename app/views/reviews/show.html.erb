@@ -3,6 +3,8 @@
     <%= link_to "Return to #{@review.draft.friend.name}'s record", regional_admin_region_friend_path(@review.draft.friend.region, @review.draft.friend) %>
   <% elsif current_user.admin? || current_user.has_active_data_entry_access_time_slot? %>
     <%= link_to "Return to #{@review.draft.friend.name}'s record", edit_community_admin_friend_path(current_community.slug, @review.draft.friend, tab: '#documents') %>
+  <% elsif current_user.remote_clinic_lawyer? %>
+    <%= link_to "Return to #{@friend.name}'s record", remote_clinic_friend_path(@friend) %>
   <% else %>
     <%= link_to "Return to #{@review.draft.friend.name}'s record", community_friend_path(current_community.slug, @review.draft.friend, tab: '#documents') %>
   <% end %>
@@ -13,7 +15,16 @@
     <div class='review-metadata'>
       <strong>Application: </strong><%= @review.draft.application.category.titleize %>
       <br>
-      <strong>Draft: </strong><%= link_to @review.draft.pdf_draft.file.filename, @review.draft.pdf_draft_url, target: '_blank' %>
+      <strong>Draft: </strong><%= @review.draft.pdf_draft.file.filename %><br>
+      <%= link_to @review.draft.pdf_draft_url, target: '_blank' do %>
+        <i class='fa fa-eye fa-lg'></i>
+        View
+      <% end %>
+      <span style='padding-left:10px; padding-right:10px;'>|</span>
+      <%= link_to @review.draft.pdf_draft.url(response_content_disposition: %Q{attachment; filename="#{ @review.draft.pdf_draft.file.filename }"}) do %>
+        <i class='fa fa-download fa-lg'></i>
+        Download
+      <% end %>
       <br>
       <strong>Review By: </strong><%= @review.user.name %>
       <br>

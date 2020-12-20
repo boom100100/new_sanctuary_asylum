@@ -61,8 +61,29 @@ class DraftsController < ApplicationController
     end
   end
 
+  def submit_for_review
+    ActiveRecord::Base.transaction do
+      draft.update!(status: 'review_requested')
+      application.update!(status: 'review_requested')
+      RemoteReviewAction.create!(
+        action: 'review_requested',
+        user_id: current_user.id,
+        friend_id: friend.id,
+        community_id: friend.community_id,
+        region_id: friend.region_id,
+        application_id: application.id,
+        draft_id: draft.id,
+      )
+    end
+    flash[:success] = 'Draft submitted for review.'
+    render_document_list
+  rescue
+    flash[:error] = 'There was an issue submitting the draft for review.'
+    render_document_list
+  end
+
   def approve
-    if draft.update_status(:approved)
+    if set_approved_status
       if friend.users.where(user_friend_associations: { remote: false }).present?
         ReviewMailer.application_approved_email(application).deliver_now
       end
@@ -80,11 +101,34 @@ class DraftsController < ApplicationController
   private
 
   def render_document_list
-    if current_user.admin? || current_user.has_active_data_entry_access_time_slot?
+    if current_user.regional_admin? && params[:remote_clinic].present?
+      redirect_to regional_admin_region_friend_path(friend.region, friend)
+    elsif current_user.admin? || current_user.has_active_data_entry_access_time_slot?
       redirect_to edit_community_admin_friend_path(current_community.slug, friend, tab: '#documents')
+    elsif current_user.remote_clinic_lawyer?
+      redirect_to remote_clinic_friend_path(friend)
     else
       redirect_to community_friend_path(current_community.slug, friend, tab: '#documents')
     end
+  end
+
+  def set_approved_status
+    ActiveRecord::Base.transaction do
+      draft.update!(status: 'approved')
+      application.update!(status: 'approved')
+      RemoteReviewAction.create!(
+        action: 'approved',
+        user_id: current_user.id,
+        friend_id: friend.id,
+        community_id: friend.community_id,
+        region_id: friend.region_id,
+        application_id: application.id,
+        draft_id: draft.id,
+      )
+    end
+    true
+  rescue
+    false
   end
 
   def draft

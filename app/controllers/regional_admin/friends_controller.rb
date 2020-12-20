@@ -1,19 +1,11 @@
 class RegionalAdmin::FriendsController < RegionalAdminController
   before_action :find_friend, only: %i[show update]
 
-  def index
-    @filterrific = initialize_filterrific(Friend,
-                                          params[:filterrific],
-                                          default_filter_params: { filter_application_status: 'all_active' },
-                                          select_options: { filter_application_status: Friend.options_for_application_status_filter_by },
-                                          persistence_id: false)
-    @friends = current_region.friends.order('created_at desc').filterrific_find(@filterrific)
+  def show
   end
 
-  def show; end
-
   def update
-    if @friend.update_attributes(user_friend_associations_params)
+    if @friend.update(remote_clinic_lawyer_friend_associations_params)
       flash[:success] = 'Changes successfully saved.'
     else
       flash[:error] = 'Something went wrong. Please try again.'
@@ -27,9 +19,9 @@ class RegionalAdmin::FriendsController < RegionalAdminController
     @friend = Friend.find_by(id: params[:id])
   end
 
-  def user_friend_associations_params
+  def remote_clinic_lawyer_friend_associations_params
     persisted_lawyer_ids = @friend.remote_clinic_lawyers.pluck(:id)
-    lawyer_ids_params = friend_params[:user_ids].map { |id| id.to_i if id.present? }.compact
+    lawyer_ids_params = base_remote_clinic_lawyer_friend_associations_params[:remote_clinic_lawyer_user_ids].map { |id| id.to_i if id.present? }.compact
     added_lawyer_ids = lawyer_ids_params - persisted_lawyer_ids
     removed_lawyer_ids = persisted_lawyer_ids - lawyer_ids_params
 
@@ -45,7 +37,7 @@ class RegionalAdmin::FriendsController < RegionalAdminController
     { user_friend_associations_attributes: user_friend_associations_attributes }
   end
 
-  def friend_params
-    params.require(:friend).permit(user_ids: [])
+  def base_remote_clinic_lawyer_friend_associations_params
+    params.require(:friend).permit(remote_clinic_lawyer_user_ids: [])
   end
 end

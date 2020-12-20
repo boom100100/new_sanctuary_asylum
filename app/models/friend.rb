@@ -1,5 +1,5 @@
 class Friend < ApplicationRecord
-  include PgSearch
+  include PgSearch::Model
 
   enum ethnicity: %i[white black hispanic asian south_asian caribbean indigenous other]
   enum gender: %i[male female awesome]
@@ -8,6 +8,8 @@ class Friend < ApplicationRecord
                 not_in_deportation_proceedings
                 asylum_reciepient
                 asylum_application_denied
+                withholding_of_removal_granted
+                cat_granted
                 legal_permanent_resident
                 in_detention
                 deported
@@ -35,10 +37,17 @@ class Friend < ApplicationRecord
                      denied].map { |status| [status.titlecase, status] }
 
   EOIR_CASE_STATUSES = %w[case_pending
+                          case_information_not_available
+                          no_case_found_for_a_number
+                          appeal_pending
+                          motion_to_reopen_pending
+                          voluntary_departure
+                          terminated_proceedings
                           immigration_judge_ordered_removal
-                          prior_voluntary_departure
-                          appeal pending
-                          motion_to_reopen_submitted].map { |status| [status.titlecase, status] }
+                          application_granted
+                          application_denied
+                          administrative_decision_issued
+                        ].map { |status| [status.titlecase, status] }
 
   CLINIC_PLANS = %w[i589
                     individual_hearing
@@ -57,6 +66,7 @@ class Friend < ApplicationRecord
   has_many :friend_languages, dependent: :destroy
   has_many :languages, through: :friend_languages
   has_many :activities, dependent: :restrict_with_error
+  has_many :accompaniment_reports, dependent: :restrict_with_error
   has_many :detentions, dependent: :destroy
   has_many :ankle_monitors, dependent: :destroy
   has_many :user_friend_associations, dependent: :destroy
@@ -73,6 +83,7 @@ class Friend < ApplicationRecord
   has_many :social_work_referral_categories, through: :friend_social_work_referral_categories
   has_many :friend_notes, dependent: :destroy
   has_one :country
+  has_many :remote_review_actions, dependent: :destroy
 
   accepts_nested_attributes_for :user_friend_associations, allow_destroy: true
 
@@ -89,8 +100,14 @@ class Friend < ApplicationRecord
   scope :with_active_applications, -> {
     joins(:applications)
       .distinct
-      .where(applications: { status: %i[in_review changes_requested approved] })
+      .where(applications: { status: %i[review_requested review_added approved] })
   }
+
+  pg_search_scope :autocomplete_name,
+    against: [:first_name, :last_name],
+    using: {
+      tsearch: { prefix: true }
+    }
 
   def volunteers_with_access
     users.where(user_friend_associations: { remote: false })
@@ -135,6 +152,10 @@ class Friend < ApplicationRecord
     where(order_of_supervision: true) if order_of_supervision == 1
   }
 
+  scope :filter_has_a_lawyer, ->(has_a_lawyer) {
+    where(has_a_lawyer: true) if has_a_lawyer == 1
+  }
+
   scope :filter_must_be_seen_by_after, ->(date) {
     where('must_be_seen_by >= ?', string_to_beginning_of_date(date))
   }
@@ -153,19 +174,20 @@ class Friend < ApplicationRecord
     where('date_of_entry <= ?', string_to_end_of_date(date) - ASYLUM_APPLICATION_DEADLINE)
   }
 
+  scope :filter_judge_imposed_deadline_ending_after, ->(date) {
+    where('judge_imposed_i589_deadline > ?', string_to_beginning_of_date(date))
+  }
+
+  scope :filter_judge_imposed_deadline_ending_before, ->(date) {
+    where('judge_imposed_i589_deadline <= ?', string_to_beginning_of_date(date))
+  }
+
   scope :filter_created_after, ->(date) {
     where('created_at >= ?', string_to_beginning_of_date(date))
   }
 
   scope :filter_created_before, ->(date) {
     where('created_at <= ?', string_to_end_of_date(date))
-  }
-
-  scope :filter_application_status, ->(status) {
-    status = %i[in_review changes_requested approved] if status == 'all_active'
-    joins(:applications)
-      .distinct
-      .where(applications: { status: status })
   }
 
   scope :filter_phone_number, ->(phone) {
@@ -208,6 +230,8 @@ class Friend < ApplicationRecord
       where('must_be_seen_by IS NOT NULL').order("friends.must_be_seen_by #{direction}")
     when /^date_of_entry/
       where('date_of_entry IS NOT NULL').order("friends.date_of_entry #{direction}")
+    when /^last_name/
+      order("friends.last_name #{direction}")
     else
       raise(ArgumentError, "Invalid sort option: #{sort_option.inspect}")
     end
@@ -268,7 +292,8 @@ class Friend < ApplicationRecord
                                     filter_asylum_application_deadline_ending_before
                                     filter_created_after
                                     filter_created_before
-                                    filter_application_status
+                                    filter_judge_imposed_deadline_ending_after
+                                    filter_judge_imposed_deadline_ending_before
                                     filter_phone_number
                                     filter_notes
                                     filter_activity_start_date
@@ -279,6 +304,7 @@ class Friend < ApplicationRecord
                                     activity_location
                                     filter_no_record_in_eoir
                                     filter_order_of_supervision
+                                    filter_has_a_lawyer
                                     country_of_origin
                                   ])
 
@@ -320,6 +346,8 @@ class Friend < ApplicationRecord
       ['Must Be Seen By (Soonest)', 'must_be_seen_by_asc'],
       ['Date of Entry (Ascending)', 'date_of_entry_asc'],
       ['Date of Entry (Descending)', 'date_of_entry_desc'],
+      ['Last Name (Ascending)', 'last_name_asc'],
+      ['Last Name (Descending)', 'last_name_desc'],
     ]
   end
 
@@ -327,8 +355,8 @@ class Friend < ApplicationRecord
   def self.options_for_application_status_filter_by
     [
       %w[All all_active],
-      ['In Review', 'in_review'],
-      ['Changes Requested', 'changes_requested'],
+      ['Review Requested', 'review_requested'],
+      ['Review Added', 'review_added'],
       %w[Approved approved]
     ]
   end
@@ -346,7 +374,7 @@ class Friend < ApplicationRecord
   end
 
   def grouped_drafts
-    applications.map do |application|
+    applications.order('category asc').map do |application|
       {
         name: application.category,
         drafts: application.drafts.order('created_at desc'),
