@@ -77,7 +77,7 @@ class Activity < ApplicationRecord
 
   def accompaniment_leader_accompaniments
     accompaniments.select do |accompaniment|
-      %w[accompaniment_leader eoir_caller].include?(accompaniment.user.role)
+      accompaniment.user.role == 'accompaniment_leader'
     end
   end
 
