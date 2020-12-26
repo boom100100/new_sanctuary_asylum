@@ -7,14 +7,12 @@ class User < ApplicationRecord
     data_entry
     eoir_caller
     admin
-    remote_clinic_lawyer
   ].map { |k, _v| [k.humanize.titleize, k] }.freeze
   NON_PRIMARY_ROLES = %w[
     volunteer
     data_entry
     eoir_caller
     admin
-    remote_clinic_lawyer
   ].map { |k, _v| [k.humanize.titleize, k] }.freeze
   # The users who can attend accompaniments (NOT as accompaniment leaders)
   ACCOMPANIMENT_ELIGIBLE_ROLES = %w[volunteer data_entry eoir_caller].freeze
@@ -156,7 +154,7 @@ class User < ApplicationRecord
   end
 
   def can_access_region?(region)
-    regional_admin? && regions.include?(region)
+    regions.include?(region)
   end
 
   def regional_admin?
